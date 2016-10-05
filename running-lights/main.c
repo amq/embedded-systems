@@ -10,26 +10,31 @@
 #include <driverlib/sysctl.h>
 #include <inc/hw_memmap.h> /* supplies GPIO_PORTx_BASE */
 
-/* controller is clocked with 16 MHz */
-#define F_CPU 16000000
+#define F_CPU 16000000 /* controller is clocked with 16 MHz */
+#define LED_COUNT 4
+#define OPEN 1
+#define CLOSED 0
 
 void setup();
 void light(char leds);
+char bit_read(char byte, char bit);
+void bit_write(char *byte, char bit, char data);
 
 void main(void) {
 
-    /* D1 is on by default */
-    char leds = 0b0001;
+    char leds = 0b0001; /* D1 is on by default */
+    char button;
 
     setup();
 
     while (1) {
         light(leds);
 
-        if (!(GPIOPinRead(GPIO_PORTJ_BASE, GPIO_PIN_0) & GPIO_PIN_0)) {
-            /* button pressed */
+        button = GPIOPinRead(GPIO_PORTJ_BASE, GPIO_PIN_0);
+
+        if (bit_read(button, 0) == CLOSED) {
             /* circular shift */
-            leds = (leds << 1) | (leds >> 3);
+            leds = (leds << 1) | (leds >> LED_COUNT-1);
         }
 
         SysCtlDelay(F_CPU / 30); /* 0.1s */
@@ -40,7 +45,7 @@ void setup(void) {
     uint32_t ui32Strength;
     uint32_t ui32PinType;
 
-    /* USR_SW1 button */
+    /* USR_SW1 and USR_SW2 buttons */
     SysCtlPeripheralEnable(SYSCTL_PERIPH_GPIOJ);
     /* D1 and D2 leds */
     SysCtlPeripheralEnable(SYSCTL_PERIPH_GPION);
@@ -48,16 +53,15 @@ void setup(void) {
     SysCtlPeripheralEnable(SYSCTL_PERIPH_GPIOF);
 
     /* input */
-    GPIOPinTypeGPIOInput(GPIO_PORTJ_BASE, GPIO_PIN_0);
+    GPIOPinTypeGPIOInput(GPIO_PORTJ_BASE, (GPIO_PIN_0 | GPIO_PIN_1));
 
     /* config */
-    GPIOPadConfigGet(GPIO_PORTJ_BASE, GPIO_PIN_0, &ui32Strength, &ui32PinType);
-    GPIOPadConfigSet(GPIO_PORTJ_BASE, GPIO_PIN_0, ui32Strength, GPIO_PIN_TYPE_STD_WPU);
+    GPIOPadConfigGet(GPIO_PORTJ_BASE, (GPIO_PIN_0 | GPIO_PIN_1), &ui32Strength, &ui32PinType);
+    GPIOPadConfigSet(GPIO_PORTJ_BASE, (GPIO_PIN_0 | GPIO_PIN_1), ui32Strength, GPIO_PIN_TYPE_STD_WPU);
     GPIOPadConfigGet(GPIO_PORTN_BASE, (GPIO_PIN_1 | GPIO_PIN_0), &ui32Strength, &ui32PinType);
     GPIOPadConfigSet(GPIO_PORTN_BASE, (GPIO_PIN_1 | GPIO_PIN_0), ui32Strength, GPIO_PIN_TYPE_STD);
     GPIOPadConfigGet(GPIO_PORTF_BASE, (GPIO_PIN_4 | GPIO_PIN_0), &ui32Strength, &ui32PinType);
-    GPIOPadConfigSet(GPIO_PORTF_BASE, (GPIO_PIN_4 | GPIO_PIN_0), ui32Strength,
-    GPIO_PIN_TYPE_STD);
+    GPIOPadConfigSet(GPIO_PORTF_BASE, (GPIO_PIN_4 | GPIO_PIN_0), ui32Strength, GPIO_PIN_TYPE_STD);
 
     /* output */
     GPIOPinTypeGPIOOutput(GPIO_PORTN_BASE, (GPIO_PIN_1 | GPIO_PIN_0));
@@ -68,13 +72,20 @@ void light(char leds) {
     /*
      * leds = 0001       ... lights up D1
      * leds = 0100       ... lights up D3
-     *
-     * (leds >> 2) & 1   ... reads the third bit from right
-     * << 4              ... shifts the result to the required pin bit
      */
 
-    GPIOPinWrite(GPIO_PORTN_BASE, GPIO_PIN_1, ((leds >> 0) & 1) << 1);
-    GPIOPinWrite(GPIO_PORTN_BASE, GPIO_PIN_0, ((leds >> 1) & 1) << 0);
-    GPIOPinWrite(GPIO_PORTF_BASE, GPIO_PIN_4, ((leds >> 2) & 1) << 4);
-    GPIOPinWrite(GPIO_PORTF_BASE, GPIO_PIN_0, ((leds >> 3) & 1) << 0);
+    GPIOPinWrite(GPIO_PORTN_BASE, GPIO_PIN_1, bit_read(leds, 0) << 1);
+    GPIOPinWrite(GPIO_PORTN_BASE, GPIO_PIN_0, bit_read(leds, 1) << 0);
+    GPIOPinWrite(GPIO_PORTF_BASE, GPIO_PIN_4, bit_read(leds, 2) << 4);
+    GPIOPinWrite(GPIO_PORTF_BASE, GPIO_PIN_0, bit_read(leds, 3) << 0);
+}
+
+char bit_read(char byte, char bit) {
+    /* reads the nth bit from right */
+    return (byte >> bit) & 1;
+}
+
+void bit_write(char *byte, char bit, char data) {
+    /* writes the nth bit from right */
+    *byte = *byte & ~(1 << bit) | (data << bit);
 }
