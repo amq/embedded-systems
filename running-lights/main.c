@@ -21,20 +21,20 @@ char bit_read(char byte, char bit);
 void bit_write(char *byte, char bit, char data);
 
 void main(void) {
-
-    char leds = 0b0001; /* D1 is on by default */
-    char button;
+    char leds = 0x01; /* D1 is on by default */
 
     setup();
+    light(leds);
 
     while (1) {
-        light(leds);
-
-        button = GPIOPinRead(GPIO_PORTJ_BASE, GPIO_PIN_0);
-
-        if (bit_read(button, 0) == CLOSED) {
+        if (bit_read(GPIOPinRead(GPIO_PORTJ_BASE, GPIO_PIN_0), 0) == CLOSED) {
             /* circular shift */
-            leds = (leds << 1) | (leds >> LED_COUNT-1);
+            leds = (leds << 1) | (leds >> (LED_COUNT - 1));
+            light(leds);
+        }
+
+        while (bit_read(GPIOPinRead(GPIO_PORTJ_BASE, GPIO_PIN_0), 0) == CLOSED) {
+            /* block until the button is released */
         }
 
         SysCtlDelay(F_CPU / 30); /* 0.1s */
