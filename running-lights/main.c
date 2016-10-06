@@ -21,7 +21,7 @@ char bit_read(char byte, char bit);
 void bit_write(char *byte, char bit, char data);
 
 void main(void) {
-    char leds = 0x01; /* D1 is on by default */
+    char leds = 0b0001; /* D1 is on by default */
 
     setup();
     light(leds);
